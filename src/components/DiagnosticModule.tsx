@@ -14,6 +14,10 @@ import {
   Check,
   RotateCcw,
   ShieldAlert,
+  FileText,
+  Download,
+  X,
+  FileCode,
 } from 'lucide-react';
 
 export const DiagnosticModule: React.FC = () => {
@@ -24,6 +28,8 @@ export const DiagnosticModule: React.FC = () => {
   const [rankContext, setRankContext] = useState<string>('Rank 47 (Node dgx-hopper-06)');
   const [loading, setLoading] = useState<boolean>(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [copiedReport, setCopiedReport] = useState<boolean>(false);
 
   const [messages, setMessages] = useState<DiagnosticMessage[]>([
     {
@@ -102,17 +108,91 @@ Unable to query backend: ${err.message}. Please verify local API connectivity.`,
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const generateReportMarkdown = () => {
+    return `# 🚨 SILENTGUARD FORENSIC INCIDENT REPORT
+**Incident ID**: INC-${Date.now().toString().slice(-6)}
+**Date/Time**: ${new Date().toISOString()}
+**Cluster**: Frontier-DGX-H100-East-01
+**Target Hardware**: ${rankContext}
+**Layer Target**: ${selectedScenario.layer}
+**Classification**: Silent Data Corruption (SDC) / ALU Carry Chain Inversion
+
+---
+
+## 1. EXECUTIVE SUMMARY
+A non-deterministic floating-point divergence was intercepted in-flight by SilentGuard Stochastic Parity Invariant during GEMM forward pass. Hardware ECC remained silent due to arithmetic execution-unit fault location.
+
+- **Parity Residual Delta**: ||r^T · C - (r^T · A) · B||_inf = 1.482e+03 (Threshold ε = 1.0e-04)
+- **In-Flight Mitigation**: Tile recomputed on SM 35 in 3.18ms. Pre-training loss curve protected from divergence.
+
+---
+
+## 2. HARDWARE SILICON ROOT CAUSE
+- **Failure Mode**: ${selectedScenario.title}
+- **Transistor Mechanism**: Negative Bias Temperature Instability (NBTI) inducing threshold voltage shift ($V_{th}$) on SM adder logic.
+- **Microarchitecture Trace**:
+\`\`\`
+${customLogs}
+\`\`\`
+
+---
+
+## 3. AUTOMATED REMEDIATION & SLURM DRAIN
+Execute the following commands on the cluster head node:
+
+\`\`\`bash
+# 1. Drain faulty node from Slurm partition
+scontrol update nodename=${selectedScenario.node} state=drain reason="SilentGuard SDC on Rank ${selectedScenario.rank}"
+
+# 2. Run standalone NVIDIA Field Diagnostic (MODS / Field Diag)
+nvsm diag run --component gpu --level 3 --target ${selectedScenario.rank}
+
+# 3. Resume training job from clean checkpoint step 42,100
+sbatch --dependency=afterok:job_prev launch_megatron.sh
+\`\`\`
+
+---
+*Report generated automatically by SilentGuard Silicon Resilience Platform.*
+`;
+  };
+
+  const handleDownloadReport = () => {
+    const md = generateReportMarkdown();
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SilentGuard-Incident-${selectedScenario.node}-Rank${selectedScenario.rank}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyReport = () => {
+    navigator.clipboard.writeText(generateReportMarkdown());
+    setCopiedReport(true);
+    setTimeout(() => setCopiedReport(false), 2000);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Scenarios & Live Investigator Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Pre-configured Scenarios & Log Editor */}
         <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-5 space-y-4 shadow-xs">
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-[#4A5D4E]" />
-            <h3 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
-              Diagnostic Scenarios
-            </h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-[#4A5D4E]" />
+              <h3 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+                Diagnostic Scenarios
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-bold bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#4A5D4E] border border-[#D1D0CB] rounded-[2px] cursor-pointer"
+            >
+              <FileText className="w-3 h-3" />
+              <span>Report</span>
+            </button>
           </div>
 
           {/* Scenario Selector */}
@@ -180,22 +260,32 @@ Unable to query backend: ${err.message}. Please verify local API connectivity.`,
                 </div>
               </div>
 
-              <button
-                onClick={() =>
-                  setMessages([
-                    {
-                      id: 'reset',
-                      sender: 'gemini',
-                      content: 'Conversation history reset. Ready for new hardware incident telemetry.',
-                      timestamp: new Date().toTimeString().split(' ')[0],
-                    },
-                  ])
-                }
-                className="p-1.5 rounded-[2px] bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#666] border border-[#D1D0CB] cursor-pointer"
-                title="Clear Chat"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[2px] bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white text-xs font-mono font-bold shadow-xs cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>1-Click Forensic Report</span>
+                </button>
+
+                <button
+                  onClick={() =>
+                    setMessages([
+                      {
+                        id: 'reset',
+                        sender: 'gemini',
+                        content: 'Conversation history reset. Ready for new hardware incident telemetry.',
+                        timestamp: new Date().toTimeString().split(' ')[0],
+                      },
+                    ])
+                  }
+                  className="p-1.5 rounded-[2px] bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#666] border border-[#D1D0CB] cursor-pointer"
+                  title="Clear Chat"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Chat message stream */}
@@ -292,6 +382,81 @@ Unable to query backend: ${err.message}. Please verify local API connectivity.`,
           </div>
         </div>
       </div>
+
+      {/* Forensic Incident Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] max-w-3xl w-full max-h-[90vh] flex flex-col shadow-lg">
+            <div className="flex items-center justify-between p-4 border-b border-[#D1D0CB] bg-[#F8F7F4]">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#4A5D4E]" />
+                <h3 className="font-serif text-base font-bold text-[#2A2A2A]">
+                  Forensic Incident Report & Slurm Drain Commands
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowReportModal(false)}
+                className="p-1 rounded-[2px] hover:bg-[#EBEAE5] text-[#666] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto font-mono text-xs text-[#2A2A2A] space-y-4 bg-white">
+              <div className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB] space-y-1">
+                <div className="font-bold text-[#4A5D4E]">INCIDENT IDENTIFIER: INC-{selectedScenario.rank}-89412</div>
+                <div>Node Target: {selectedScenario.node} | GPU Rank: {selectedScenario.rank} (SXM5 Socket #3)</div>
+                <div>Violation: {selectedScenario.title}</div>
+                <div>Timestamp: {new Date().toISOString()}</div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-xs uppercase tracking-wider mb-1 font-mono">
+                  1. SILICON DAMAGE ASSESSMENT
+                </h4>
+                <p className="text-[#666] font-sans text-xs leading-relaxed">
+                  Intermittent single-bit error isolated to SM 34 Mantissa Adder Tree on {selectedScenario.node}. Parity invariant norm violation delta exceeded 1.482e+03. Zero ECC interrupt was dispatched by PCIe root complex.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-xs uppercase tracking-wider mb-1 font-mono">
+                  2. SLURM CLUSTER REMEDIATION PLAYBOOK
+                </h4>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-3 rounded-[2px] border border-[#333330] space-y-1">
+                  <div># Quarantine node immediately</div>
+                  <div>scontrol update nodename={selectedScenario.node} state=drain reason="SilentGuard SDC"</div>
+                  <div className="pt-1"># Trigger NVIDIA Field Diagnostic level-3 memory & ALU pattern test</div>
+                  <div>nvsm diag run --component gpu --level 3 --target {selectedScenario.rank}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[#D1D0CB] bg-[#F8F7F4] flex items-center justify-between">
+              <span className="text-[11px] text-[#666] font-mono">
+                Format: Clean Markdown Engineering Standard
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCopyReport}
+                  className="px-3 py-1.5 text-xs font-mono bg-white hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] rounded-[2px] flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedReport ? <Check className="w-3.5 h-3.5 text-[#4A5D4E]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedReport ? 'Copied' : 'Copy Markdown'}</span>
+                </button>
+                <button
+                  onClick={handleDownloadReport}
+                  className="px-3 py-1.5 text-xs font-mono bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white font-bold rounded-[2px] flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download .md</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

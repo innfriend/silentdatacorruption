@@ -13,6 +13,15 @@ import {
   ShieldCheck,
   Flame,
   Layers,
+  FolderTree,
+  FileCode,
+  Activity,
+  BarChart3,
+  Monitor,
+  Eye,
+  Server,
+  FileText,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const KernelSuiteModule: React.FC = () => {
@@ -27,6 +36,8 @@ export const KernelSuiteModule: React.FC = () => {
   });
 
   const [copied, setCopied] = useState<boolean>(false);
+  const [activeGuideTab, setActiveGuideTab] = useState<'contents' | 'generated' | 'dashboard' | 'cli'>('contents');
+  const [copiedCli, setCopiedCli] = useState<string | null>(null);
 
   const generatedCode = generateKernelCode(config);
 
@@ -34,6 +45,12 @@ export const KernelSuiteModule: React.FC = () => {
     navigator.clipboard.writeText(generatedCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopySnippet = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCli(id);
+    setTimeout(() => setCopiedCli(null), 2000);
   };
 
   const handleDownloadPy = () => {
@@ -70,9 +87,10 @@ export const KernelSuiteModule: React.FC = () => {
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { id: 'triton', name: 'OpenAI Triton' },
-                { id: 'pytorch', name: 'PyTorch FSDP' },
-                { id: 'deepspeed', name: 'DeepSpeed MoE' },
-                { id: 'flashattention', name: 'FlashAttention' },
+                { id: 'megatron', name: 'Megatron-LM / Core' },
+                { id: 'pytorch', name: 'PyTorch / Torchtitan' },
+                { id: 'vllm', name: 'vLLM / SGLang' },
+                { id: 'flashattention', name: 'FlashAttention-3' },
               ].map((fw) => (
                 <button
                   key={fw.id}
@@ -269,6 +287,362 @@ export const KernelSuiteModule: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Package Contents, Runtime Artifacts & Telemetry Dashboard Viewer */}
+      <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-6 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#D1D0CB] pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <FolderTree className="w-4 h-4 text-[#4A5D4E]" />
+              <h3 className="font-serif text-base font-bold text-[#2A2A2A]">
+                Package Anatomy, Generated Runtime Artifacts & Dashboard Guide
+              </h3>
+            </div>
+            <p className="text-xs text-[#666] mt-0.5">
+              Everything included in the package, what it writes on compute nodes during training, and how to view telemetry.
+            </p>
+          </div>
+
+          {/* Guide Subtabs */}
+          <div className="flex bg-[#F8F7F4] p-0.5 rounded-[2px] border border-[#D1D0CB] text-xs font-mono">
+            <button
+              onClick={() => setActiveGuideTab('contents')}
+              className={`px-3 py-1.5 rounded-[2px] transition-all cursor-pointer ${
+                activeGuideTab === 'contents'
+                  ? 'bg-[#4A5D4E] text-white font-bold shadow-xs'
+                  : 'text-[#666] hover:text-[#2A2A2A]'
+              }`}
+            >
+              1. Package Contents
+            </button>
+            <button
+              onClick={() => setActiveGuideTab('generated')}
+              className={`px-3 py-1.5 rounded-[2px] transition-all cursor-pointer ${
+                activeGuideTab === 'generated'
+                  ? 'bg-[#4A5D4E] text-white font-bold shadow-xs'
+                  : 'text-[#666] hover:text-[#2A2A2A]'
+              }`}
+            >
+              2. Generated Artifacts
+            </button>
+            <button
+              onClick={() => setActiveGuideTab('dashboard')}
+              className={`px-3 py-1.5 rounded-[2px] transition-all cursor-pointer ${
+                activeGuideTab === 'dashboard'
+                  ? 'bg-[#4A5D4E] text-white font-bold shadow-xs'
+                  : 'text-[#666] hover:text-[#2A2A2A]'
+              }`}
+            >
+              3. Telemetry & Dashboards
+            </button>
+            <button
+              onClick={() => setActiveGuideTab('cli')}
+              className={`px-3 py-1.5 rounded-[2px] transition-all cursor-pointer ${
+                activeGuideTab === 'cli'
+                  ? 'bg-[#4A5D4E] text-white font-bold shadow-xs'
+                  : 'text-[#666] hover:text-[#2A2A2A]'
+              }`}
+            >
+              4. CLI Tools
+            </button>
+          </div>
+        </div>
+
+        {/* Tab 1: Package Contents */}
+        {activeGuideTab === 'contents' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <FileCode className="w-3.5 h-3.5 text-[#4A5D4E]" />
+                Python Package Structure (`silentguard/`)
+              </h4>
+              <div className="bg-[#1C1C1A] text-[#D1D0CB] rounded-[2px] p-4 font-mono text-xs border border-[#333330] leading-relaxed">
+                <pre className="text-emerald-300">
+{`silentguard/
+├── __init__.py                # Core entrypoints & single-line hooks
+├── kernels/
+│   ├── triton_gemm.py         # Fused In-Register Freivalds Triton MMA
+│   ├── flash_attn_guard.py    # FlashAttention-3 QK^T invariant hooks
+│   └── fp8_hopper.py          # FP8 (E4M3/E5M2) tensor core parity
+├── distributed/
+│   ├── megatron_patch.py      # Megatron-Core Column/RowParallel wrappers
+│   ├── fsdp_wrapper.py        # PyTorch FSDP / Torchtitan hooks
+│   └── nccl_checksum.py       # Distributed all-reduce packet CRC/invariants
+├── inference/
+│   ├── vllm_paged_attn.py     # vLLM KV-cache & logit anomaly detector
+│   └── sglang_guard.py        # SGLang RadixAttention invariant monitor
+├── telemetry/
+│   ├── prometheus_exporter.py # Live :9090 metrics server
+│   ├── slurm_drain.py         # Automated scontrol node drain trigger
+│   └── wandb_callback.py      # Weights & Biases / TensorBoard plugin
+└── cli/
+    ├── main.py                # \`silentguard\` CLI tool
+    └── tui_dashboard.py       # Terminal curses live cluster dashboard`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+                Key Modules & Functional Roles
+              </h4>
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
+                  <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
+                    <span>1. In-Register Tensor Core MMA</span>
+                    <span className="text-[#4A5D4E] font-bold">&lt; 0.08% Overhead</span>
+                  </div>
+                  <p className="text-[#666] mt-1">
+                    Evaluates Freivalds algebraic invariant <code className="text-[#2A2A2A]">$r^T \cdot (A \cdot B) = (r^T \cdot A) \cdot B$</code> directly in SRAM registers during matrix accumulation before HBM writeback.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
+                  <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
+                    <span>2. Distributed Megatron & FSDP Monkeypatch</span>
+                    <span className="text-[#4A5D4E] font-bold">Zero Code Changes</span>
+                  </div>
+                  <p className="text-[#666] mt-1">
+                    Transparently intercepts Tensor-Parallel GEMMs across 128+ ranks, isolating bad math to the exact SM on the specific GPU rank.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
+                  <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
+                    <span>3. In-Flight Tile Recomputation & Slurm Drain</span>
+                    <span className="text-[#4A5D4E] font-bold">&lt; 3.8ms Recovery</span>
+                  </div>
+                  <p className="text-[#666] mt-1">
+                    If an invariant violation is trapped, the corrupted tile is recomputed on a healthy SM in &lt;3.8ms, while the faulty node is quarantined from the cluster partition.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Generated Artifacts */}
+        {activeGuideTab === 'generated' && (
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+              Artifacts & Logs Generated During Training Job Execution
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB] space-y-2">
+                <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#2A2A2A]">
+                  <FileText className="w-4 h-4 text-[#4A5D4E]" />
+                  <span>logs/sdc_events.jsonl</span>
+                </div>
+                <p className="text-[11px] text-[#666]">
+                  High-resolution JSONL stream recording every parity violation, rank ID, SM index, residual delta norm ($\delta$), and recomputation duration.
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2 rounded-[2px] text-[10px] font-mono overflow-x-auto">
+                  {`{"ts":"10:44:12","rank":47,"sm":34,"delta":1.48e3,"recomp_ms":3.18}`}
+                </div>
+              </div>
+
+              <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB] space-y-2">
+                <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#2A2A2A]">
+                  <AlertTriangle className="w-4 h-4 text-[#8C2D2D]" />
+                  <span>incidents/INC-*.md</span>
+                </div>
+                <p className="text-[11px] text-[#666]">
+                  Self-contained forensic incident reports detailing silicon transistor mechanism, layer name, and exact Slurm drain/MODS diagnostic commands.
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2 rounded-[2px] text-[10px] font-mono overflow-x-auto">
+                  {`# Incident INC-47-89412\nNode: dgx-hopper-06\nAction: scontrol drain`}
+                </div>
+              </div>
+
+              <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB] space-y-2">
+                <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#2A2A2A]">
+                  <Activity className="w-4 h-4 text-[#4A5D4E]" />
+                  <span>:9090/metrics</span>
+                </div>
+                <p className="text-[11px] text-[#666]">
+                  Prometheus metrics stream tracking total parity checks, SDC violations per hour, SM temperature correlation, and recovery latencies.
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2 rounded-[2px] text-[10px] font-mono overflow-x-auto">
+                  {`silentguard_violations_total 1\nsilentguard_recompute_ms 3.18`}
+                </div>
+              </div>
+
+              <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB] space-y-2">
+                <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#2A2A2A]">
+                  <BarChart3 className="w-4 h-4 text-[#4A5D4E]" />
+                  <span>checkpoints/audit.json</span>
+                </div>
+                <p className="text-[11px] text-[#666]">
+                  Summary of Kurtosis ($K$), subnormal densities, and exponent anomalies produced by offline post-save or in-memory verification.
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2 rounded-[2px] text-[10px] font-mono overflow-x-auto">
+                  {`{"kurtosis":3.08,"exponent_overflows":0,"status":"healthy"}`}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Telemetry & Dashboards */}
+        {activeGuideTab === 'dashboard' && (
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+              How to View Results: 4 Integrated Dashboard Options
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Option 1: Web Dashboard */}
+              <div className="p-4 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-mono font-bold text-xs text-[#2A2A2A]">
+                    <Monitor className="w-4 h-4 text-[#4A5D4E]" />
+                    <span>Option 1: SilentGuard Web Dashboard (This App)</span>
+                  </div>
+                  <span className="px-2 py-0.5 bg-[#4A5D4E] text-white text-[10px] font-mono font-bold rounded-[2px]">
+                    Built-in
+                  </span>
+                </div>
+                <p className="text-xs text-[#666]">
+                  Point your training job's telemetry exporter to this web dashboard via REST/WebSocket:
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2.5 rounded-[2px] font-mono text-xs flex justify-between items-center">
+                  <code>export SILENTGUARD_TELEMETRY_ENDPOINT="http://&lt;headnode&gt;:3000/api/telemetry"</code>
+                  <button
+                    onClick={() => handleCopySnippet('export SILENTGUARD_TELEMETRY_ENDPOINT="http://localhost:3000/api/telemetry"', 'dash-env')}
+                    className="p-1 text-white hover:text-emerald-400 cursor-pointer"
+                  >
+                    {copiedCli === 'dash-env' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <ul className="text-xs text-[#666] space-y-1 list-disc pl-4">
+                  <li><strong>Cluster Simulator Tab</strong>: Live 128-GPU rank grid, live loss curves, InfiniBand ring.</li>
+                  <li><strong>AI Root-Cause Diagnostic Tab</strong>: Automated hardware failure diagnosis and Slurm remediation playbooks.</li>
+                </ul>
+              </div>
+
+              {/* Option 2: Terminal TUI */}
+              <div className="p-4 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-mono font-bold text-xs text-[#2A2A2A]">
+                    <Terminal className="w-4 h-4 text-[#4A5D4E]" />
+                    <span>Option 2: Terminal CLI Dashboard (`curses` TUI)</span>
+                  </div>
+                  <span className="px-2 py-0.5 bg-[#2A2A2A] text-white text-[10px] font-mono font-bold rounded-[2px]">
+                    Terminal Native
+                  </span>
+                </div>
+                <p className="text-xs text-[#666]">
+                  For SSH sessions and headless cluster environments without browser access:
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2.5 rounded-[2px] font-mono text-xs flex justify-between items-center">
+                  <code>silentguard dashboard --cluster-ranks 128 --watch</code>
+                  <button
+                    onClick={() => handleCopySnippet('silentguard dashboard --cluster-ranks 128 --watch', 'dash-cli')}
+                    className="p-1 text-white hover:text-emerald-400 cursor-pointer"
+                  >
+                    {copiedCli === 'dash-cli' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <ul className="text-xs text-[#666] space-y-1 list-disc pl-4">
+                  <li>Displays live GPU heatmaps directly inside tmux / Slurm allocation terminal.</li>
+                  <li>Instant alert banners when parity residuals exceed $\epsilon = 10^{-4}$.</li>
+                </ul>
+              </div>
+
+              {/* Option 3: Grafana & Prometheus */}
+              <div className="p-4 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-mono font-bold text-xs text-[#2A2A2A]">
+                    <Server className="w-4 h-4 text-[#4A5D4E]" />
+                    <span>Option 3: Grafana & Prometheus Preset</span>
+                  </div>
+                </div>
+                <p className="text-xs text-[#666]">
+                  Export production Grafana dashboards ready for enterprise NOC integration:
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2.5 rounded-[2px] font-mono text-xs flex justify-between items-center">
+                  <code>silentguard export-grafana --out /etc/grafana/dashboards/sdc.json</code>
+                  <button
+                    onClick={() => handleCopySnippet('silentguard export-grafana --out /etc/grafana/dashboards/sdc.json', 'dash-graf')}
+                    className="p-1 text-white hover:text-emerald-400 cursor-pointer"
+                  >
+                    {copiedCli === 'dash-graf' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 4: Weights & Biases */}
+              <div className="p-4 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-mono font-bold text-xs text-[#2A2A2A]">
+                    <BarChart3 className="w-4 h-4 text-[#4A5D4E]" />
+                    <span>Option 4: Weights & Biases / TensorBoard Hook</span>
+                  </div>
+                </div>
+                <p className="text-xs text-[#666]">
+                  Streams telemetry metrics to your experiment tracking platform:
+                </p>
+                <div className="bg-[#1C1C1A] text-emerald-300 p-2.5 rounded-[2px] font-mono text-xs flex justify-between items-center">
+                  <code>from silentguard.telemetry import SilentGuardWandbCallback</code>
+                  <button
+                    onClick={() => handleCopySnippet('from silentguard.telemetry import SilentGuardWandbCallback', 'dash-wandb')}
+                    className="p-1 text-white hover:text-emerald-400 cursor-pointer"
+                  >
+                    {copiedCli === 'dash-wandb' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: CLI Commands */}
+        {activeGuideTab === 'cli' && (
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+              Useful CLI Commands in the SilentGuard Package
+            </h4>
+            <div className="space-y-2 font-mono text-xs">
+              {[
+                {
+                  cmd: 'pip install silentguard',
+                  desc: 'Installs the Python SDK and Triton fused in-register parity kernels.',
+                  id: 'cli-install',
+                },
+                {
+                  cmd: 'silentguard scan /checkpoints/llama-3-70b-step42000.safetensors',
+                  desc: 'Performs offline 4th-moment Kurtosis and exponent bit-flip anomaly audit on model weights.',
+                  id: 'cli-scan',
+                },
+                {
+                  cmd: 'silentguard benchmark --m 8192 --n 8192 --k 8192 --precision bf16',
+                  desc: 'Runs microbenchmarks comparing standard GEMM vs SilentGuard parity overhead on local GPUs.',
+                  id: 'cli-bench',
+                },
+                {
+                  cmd: 'silentguard dashboard --port 9090',
+                  desc: 'Launches local terminal curses dashboard and Prometheus metrics exporter on compute head node.',
+                  id: 'cli-dash',
+                },
+              ].map((item) => (
+                <div key={item.id} className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-[#2A2A2A]">{item.cmd}</div>
+                    <div className="text-[11px] text-[#666] font-sans mt-0.5">{item.desc}</div>
+                  </div>
+                  <button
+                    onClick={() => handleCopySnippet(item.cmd, item.id)}
+                    className="self-start sm:self-center px-2.5 py-1 bg-white hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] rounded-[2px] flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedCli === item.id ? <Check className="w-3.5 h-3.5 text-[#4A5D4E]" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedCli === item.id ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -94,6 +94,7 @@ export const SimulatorModule: React.FC<SimulatorModuleProps> = ({
   recomputedTiles,
   setRecomputedTiles,
 }) => {
+  const [viewMode, setViewMode] = useState<'grid' | 'nccl'>('grid');
   const [selectedRank, setSelectedRank] = useState<GpuRank | null>(ranks[47] || ranks[0]);
   const [targetRankId, setTargetRankId] = useState<number>(47);
   const [selectedFault, setSelectedFault] = useState<FaultType>('exponent_msb');
@@ -103,51 +104,95 @@ export const SimulatorModule: React.FC<SimulatorModuleProps> = ({
   const [logFilter, setLogFilter] = useState<string>('all');
   const [searchLog, setSearchLog] = useState<string>('');
 
+  // NCCL Ring Simulation State
+  const [ncclStep, setNcclStep] = useState<number>(3);
+  const [ncclPhase, setNcclPhase] = useState<'scatter-reduce' | 'all-gather'>('scatter-reduce');
+  const [ncclCorruptedNode, setNcclCorruptedNode] = useState<number | null>(null);
+
   const logContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleInjectNcclFault = (nodeIdx: number) => {
+    setNcclCorruptedNode(nodeIdx);
+    const timeStr = new Date().toTimeString().split(' ')[0] + '.' + Math.floor(Math.random() * 900 + 100);
+
+    const log: TelemetryLog = {
+      id: `nccl-${Date.now()}`,
+      timestamp: timeStr,
+      rank: nodeIdx * 8,
+      nodeId: `dgx-hopper-${(nodeIdx + 1).toString().padStart(2, '0')}`,
+      severity: 'critical',
+      event: 'NCCL_PACKET_CRC_VIOLATION',
+      details: `InfiniBand NDR packet bit-flip on Ring chunk [${ncclStep}/8]. Invariant checksum failed on Node ${nodeIdx + 1}.`,
+      deltaNorm: 9.42e2,
+      durationMs: 1.84,
+    };
+
+    setLogs((prev) => [log, ...prev.slice(0, 49)]);
+
+    setTimeout(() => {
+      setNcclCorruptedNode(null);
+      const healLog: TelemetryLog = {
+        id: `nccl-heal-${Date.now()}`,
+        timestamp: new Date().toTimeString().split(' ')[0] + '.' + Math.floor(Math.random() * 900 + 100),
+        rank: nodeIdx * 8,
+        nodeId: `dgx-hopper-${(nodeIdx + 1).toString().padStart(2, '0')}`,
+        severity: 'recovery',
+        event: 'NCCL_IN_FLIGHT_PACKET_RESEND',
+        details: `Clean packet re-sent across InfiniBand QDR/NDR fabric in 1.84ms. Collective all_reduce unharmed.`,
+        durationMs: 1.84,
+      };
+      setLogs((prev) => [healLog, ...prev.slice(0, 49)]);
+    }, 1500);
+  };
+
+  const currentStepRef = useRef<number>(currentStep);
+  currentStepRef.current = currentStep;
+  const ranksRef = useRef<GpuRank[]>(ranks);
+  ranksRef.current = ranks;
+  const autoDrainRef = useRef<boolean>(autoDrain);
+  autoDrainRef.current = autoDrain;
 
   // Auto-simulation interval
   useEffect(() => {
     if (!isSimulating) return;
 
     const timer = setInterval(() => {
-      // Advance step
-      setCurrentStep((prev) => {
-        const nextStep = prev + 5;
-        const baseLoss = 2.11 - (nextStep - 42080) * 0.0004;
+      const nextStep = currentStepRef.current + 5;
+      setCurrentStep(nextStep);
+      currentStepRef.current = nextStep;
 
-        setLossData((prevData) => {
-          const lastPoint = prevData[prevData.length - 1];
-          const hasActiveCorruption = ranks.some((r) => r.status === 'corrupted');
+      const baseLoss = 2.11 - (nextStep - 42080) * 0.0004;
 
-          const newUnprotected = hasActiveCorruption
-            ? (lastPoint ? lastPoint.unprotectedLoss * 1.85 + 2.5 : 8.4)
-            : Math.max(0.85, baseLoss + (Math.random() * 0.004 - 0.002));
+      setLossData((prevData) => {
+        const lastPoint = prevData[prevData.length - 1];
+        const hasActiveCorruption = ranksRef.current.some((r) => r.status === 'corrupted');
 
-          const newProtected = Math.max(0.85, baseLoss + (Math.random() * 0.003 - 0.0015));
+        const newUnprotected = hasActiveCorruption
+          ? (lastPoint ? lastPoint.unprotectedLoss * 1.85 + 2.5 : 8.4)
+          : Math.max(0.85, baseLoss + (Math.random() * 0.004 - 0.002));
 
-          const newPoint: LossDataPoint = {
-            step: nextStep,
-            unprotectedLoss: Number(newUnprotected.toFixed(4)),
-            silentGuardLoss: Number(newProtected.toFixed(4)),
-            injected: hasActiveCorruption,
-            recovered: false,
-          };
+        const newProtected = Math.max(0.85, baseLoss + (Math.random() * 0.003 - 0.0015));
 
-          return [...prevData.slice(-18), newPoint];
-        });
+        const newPoint: LossDataPoint = {
+          step: nextStep,
+          unprotectedLoss: Number(newUnprotected.toFixed(4)),
+          silentGuardLoss: Number(newProtected.toFixed(4)),
+          injected: hasActiveCorruption,
+          recovered: false,
+        };
 
-        // Occasional background cosmic ray (15% chance per tick if no current corruption)
-        if (Math.random() < 0.15) {
-          const randomRankId = Math.floor(Math.random() * ranks.length);
-          triggerFault(randomRankId, 'exponent_msb', false);
-        }
-
-        return nextStep;
+        return [...prevData.slice(-18), newPoint];
       });
+
+      // Occasional background cosmic ray (15% chance per tick if no current corruption)
+      if (Math.random() < 0.15 && !ranksRef.current.some((r) => r.status === 'corrupted')) {
+        const randomRankId = Math.floor(Math.random() * ranksRef.current.length);
+        triggerFault(randomRankId, 'exponent_msb', false);
+      }
     }, 2000);
 
     return () => clearInterval(timer);
-  }, [isSimulating, ranks]);
+  }, [isSimulating]);
 
   // Inject a fault on a rank
   const triggerFault = (rankId: number, fault: FaultType, manual: boolean = true) => {
@@ -280,6 +325,30 @@ export const SimulatorModule: React.FC<SimulatorModuleProps> = ({
 
         {/* Sim Controls */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Mode Switcher */}
+          <div className="flex bg-[#F8F7F4] p-0.5 rounded-[2px] border border-[#D1D0CB] text-xs font-mono">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1 rounded-[2px] transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-[#4A5D4E] text-white font-bold shadow-xs'
+                  : 'text-[#666] hover:text-[#2A2A2A]'
+              }`}
+            >
+              128-Rank Topology
+            </button>
+            <button
+              onClick={() => setViewMode('nccl')}
+              className={`px-3 py-1 rounded-[2px] transition-all cursor-pointer ${
+                viewMode === 'nccl'
+                  ? 'bg-[#4A5D4E] text-white font-bold shadow-xs'
+                  : 'text-[#666] hover:text-[#2A2A2A]'
+              }`}
+            >
+              NCCL Ring & InfiniBand
+            </button>
+          </div>
+
           <button
             onClick={() => setIsSimulating(!isSimulating)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] text-xs font-semibold shadow-xs transition-colors cursor-pointer ${
@@ -304,82 +373,167 @@ export const SimulatorModule: React.FC<SimulatorModuleProps> = ({
 
       {/* Main Grid + Fault Injector + Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 128-Rank GPU NOC Grid (2 Columns wide on LG) */}
-        <div className="lg:col-span-2 bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+        {/* Left 2 Cols: Either 128-Rank Grid OR NCCL Ring All-Reduce */}
+        {viewMode === 'grid' ? (
+          <div className="lg:col-span-2 bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+                  GPU Rank Map (Click Any Rank to Inspect)
+                </h4>
+                <p className="text-xs text-[#666]">
+                  Each block represents an NVIDIA H100 SXM5 GPU rank with live parity telemetry
+                </p>
+              </div>
+              {/* Status Legend */}
+              <div className="flex items-center gap-3 text-[11px] font-mono">
+                <span className="flex items-center gap-1 text-[#2A2A2A]">
+                  <span className="w-2.5 h-2.5 rounded-[1px] bg-[#4A5D4E]"></span> Healthy
+                </span>
+                <span className="flex items-center gap-1 text-[#8C2D2D]">
+                  <span className="w-2.5 h-2.5 rounded-[1px] bg-[#8C2D2D] animate-pulse"></span> Corrupted (SDC)
+                </span>
+                <span className="flex items-center gap-1 text-[#F27D26]">
+                  <span className="w-2.5 h-2.5 rounded-[1px] bg-[#F27D26]"></span> Quarantined
+                </span>
+              </div>
+            </div>
+
+            {/* 16 Nodes Grid (each node contains 8 GPUs) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Array.from({ length: 16 }, (_, nodeIdx) => {
+                const nodeNum = (nodeIdx + 1).toString().padStart(2, '0');
+                const nodeRanks = ranks.slice(nodeIdx * 8, (nodeIdx + 1) * 8);
+
+                return (
+                  <div
+                    key={nodeIdx}
+                    className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB] hover:border-[#4A5D4E] transition-colors"
+                  >
+                    <div className="text-[10px] font-mono font-bold text-[#666] mb-1.5 flex justify-between">
+                      <span>NODE {nodeNum}</span>
+                      <span className="text-[#999]">8x H100</span>
+                    </div>
+
+                    {/* 8 GPU Ranks Grid */}
+                    <div className="grid grid-cols-4 gap-1">
+                      {nodeRanks.map((rank) => {
+                        const isSelected = selectedRank?.id === rank.id;
+                        let bgClass = 'bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white';
+                        if (rank.status === 'corrupted') {
+                          bgClass = 'bg-[#8C2D2D] text-white animate-pulse';
+                        } else if (rank.status === 'quarantined') {
+                          bgClass = 'bg-[#F27D26] text-white';
+                        } else if (rank.status === 'recomputing') {
+                          bgClass = 'bg-blue-600 text-white animate-pulse';
+                        }
+
+                        return (
+                          <button
+                            key={rank.id}
+                            onClick={() => {
+                              setSelectedRank(rank);
+                              setTargetRankId(rank.id);
+                            }}
+                            title={`Rank ${rank.rank} (${rank.nodeId} GPU ${rank.gpuIndex}) - ${rank.status.toUpperCase()}`}
+                            className={`h-7 text-[10px] font-mono font-semibold rounded-[2px] flex items-center justify-center transition-all cursor-pointer ${bgClass} ${
+                              isSelected ? 'ring-2 ring-offset-1 ring-[#2A2A2A]' : ''
+                            }`}
+                          >
+                            {rank.rank}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* NCCL Ring All-Reduce & InfiniBand Simulator */
+          <div className="lg:col-span-2 bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs flex flex-col justify-between">
             <div>
-              <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
-                GPU Rank Map (Click Any Rank to Inspect)
-              </h4>
-              <p className="text-xs text-[#666]">
-                Each block represents an NVIDIA H100 SXM5 GPU rank with live parity telemetry
-              </p>
-            </div>
-            {/* Status Legend */}
-            <div className="flex items-center gap-3 text-[11px] font-mono">
-              <span className="flex items-center gap-1 text-[#2A2A2A]">
-                <span className="w-2.5 h-2.5 rounded-[1px] bg-[#4A5D4E]"></span> Healthy
-              </span>
-              <span className="flex items-center gap-1 text-[#8C2D2D]">
-                <span className="w-2.5 h-2.5 rounded-[1px] bg-[#8C2D2D] animate-pulse"></span> Corrupted (SDC)
-              </span>
-              <span className="flex items-center gap-1 text-[#F27D26]">
-                <span className="w-2.5 h-2.5 rounded-[1px] bg-[#F27D26]"></span> Quarantined
-              </span>
-            </div>
-          </div>
-
-          {/* 16 Nodes Grid (each node contains 8 GPUs) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {Array.from({ length: 16 }, (_, nodeIdx) => {
-              const nodeNum = (nodeIdx + 1).toString().padStart(2, '0');
-              const nodeRanks = ranks.slice(nodeIdx * 8, (nodeIdx + 1) * 8);
-
-              return (
-                <div
-                  key={nodeIdx}
-                  className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB] hover:border-[#4A5D4E] transition-colors"
-                >
-                  <div className="text-[10px] font-mono font-bold text-[#666] mb-1.5 flex justify-between">
-                    <span>NODE {nodeNum}</span>
-                    <span className="text-[#999]">8x H100</span>
-                  </div>
-
-                  {/* 8 GPU Ranks Grid */}
-                  <div className="grid grid-cols-4 gap-1">
-                    {nodeRanks.map((rank) => {
-                      const isSelected = selectedRank?.id === rank.id;
-                      let bgClass = 'bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white';
-                      if (rank.status === 'corrupted') {
-                        bgClass = 'bg-[#8C2D2D] text-white animate-pulse';
-                      } else if (rank.status === 'quarantined') {
-                        bgClass = 'bg-[#F27D26] text-white';
-                      } else if (rank.status === 'recomputing') {
-                        bgClass = 'bg-blue-600 text-white animate-pulse';
-                      }
-
-                      return (
-                        <button
-                          key={rank.id}
-                          onClick={() => {
-                            setSelectedRank(rank);
-                            setTargetRankId(rank.id);
-                          }}
-                          title={`Rank ${rank.rank} (${rank.nodeId} GPU ${rank.gpuIndex}) - ${rank.status.toUpperCase()}`}
-                          className={`h-7 text-[10px] font-mono font-semibold rounded-[2px] flex items-center justify-center transition-all cursor-pointer ${bgClass} ${
-                            isSelected ? 'ring-2 ring-offset-1 ring-[#2A2A2A]' : ''
-                          }`}
-                        >
-                          {rank.rank}
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+                    NCCL Ring All-Reduce & InfiniBand NDR 400G Simulator
+                  </h4>
+                  <p className="text-xs text-[#666]">
+                    Simulating 8-Node Ring Collective | Phase: <span className="font-mono font-bold uppercase text-[#4A5D4E]">{ncclPhase}</span> (Chunk {ncclStep}/8)
+                  </p>
                 </div>
-              );
-            })}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setNcclPhase(ncclPhase === 'scatter-reduce' ? 'all-gather' : 'scatter-reduce')}
+                    className="px-2.5 py-1 text-xs font-mono bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] rounded-[2px] cursor-pointer"
+                  >
+                    Toggle Phase
+                  </button>
+                  <button
+                    onClick={() => setNcclStep((s) => (s % 8) + 1)}
+                    className="px-2.5 py-1 text-xs font-mono bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white font-bold rounded-[2px] cursor-pointer"
+                  >
+                    Step Ring (+1)
+                  </button>
+                </div>
+              </div>
+
+              {/* Ring Visualization: 8 Nodes in a Circle/Ring Pattern */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                {Array.from({ length: 8 }, (_, nodeIdx) => {
+                  const isCorrupt = ncclCorruptedNode === nodeIdx;
+                  return (
+                    <div
+                      key={nodeIdx}
+                      className={`p-3 rounded-[2px] border transition-all text-xs font-mono ${
+                        isCorrupt
+                          ? 'bg-[#8C2D2D] text-white border-red-800 animate-pulse'
+                          : 'bg-[#F8F7F4] text-[#2A2A2A] border-[#D1D0CB]'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold">NODE {(nodeIdx + 1).toString().padStart(2, '0')}</span>
+                        <span className="text-[10px] opacity-80">Ranks {nodeIdx * 8}-{nodeIdx * 8 + 7}</span>
+                      </div>
+                      <div className="text-[11px] opacity-90 mb-2">
+                        NVLink 4.0: 900 GB/s
+                        <br />
+                        IB Port: NDR 400G
+                      </div>
+                      <button
+                        onClick={() => handleInjectNcclFault(nodeIdx)}
+                        className={`w-full py-1 text-[10px] font-bold rounded-[1px] cursor-pointer transition-colors ${
+                          isCorrupt
+                            ? 'bg-white text-[#8C2D2D]'
+                            : 'bg-[#2A2A2A] hover:bg-black text-white'
+                        }`}
+                      >
+                        {isCorrupt ? 'Corrupted!' : 'Inject Packet SDC'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Invariant Transmission Pipeline Banner */}
+              <div className="bg-[#1C1C1A] text-white p-3.5 rounded-[2px] border border-[#333330] font-mono text-xs space-y-1.5">
+                <div className="flex items-center justify-between text-emerald-400 font-bold">
+                  <span>NCCL IN-FLIGHT PACKET INVARIANT: CRC-64 + RADEMACHER CHECKSUM</span>
+                  <span className="text-[11px] text-[#888880]">Ring Latency: 4.8 μs/hop</span>
+                </div>
+                <p className="text-[11px] text-[#D1D0CB] leading-relaxed">
+                  Every NCCL gradient buffer packet embeds a 64-bit projection invariant. If an InfiniBand SerDes transceiver or NVLink switch experiences parity drift, the corrupted packet is quarantined and re-requested in <strong className="text-emerald-400">&lt;2ms</strong> without halting the 128-rank distributed training collective.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-[#D1D0CB] flex justify-between items-center text-xs text-[#666]">
+              <span>Scatter-Reduce Bandwidth Efficiency: 2 × (N - 1) / N × Matrix Size</span>
+              <span className="text-[#4A5D4E] font-bold font-mono">ZERO NCCL DEADLOCK GUARANTEE</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Fault Injector & Selected Rank Inspector */}
         <div className="space-y-4">

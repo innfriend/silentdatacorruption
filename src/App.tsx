@@ -8,7 +8,6 @@ import { SimulatorModule } from './components/SimulatorModule';
 import { KernelSuiteModule } from './components/KernelSuiteModule';
 import { ScannerModule } from './components/ScannerModule';
 import { DiagnosticModule } from './components/DiagnosticModule';
-import { CommercialModule } from './components/CommercialModule';
 import { RoiCalculatorModule } from './components/RoiCalculatorModule';
 import { ScienceModule } from './components/ScienceModule';
 import { Footer } from './components/Footer';
@@ -144,8 +143,6 @@ export default function App() {
         {activeTab === 'scanner' && <ScannerModule />}
 
         {activeTab === 'diagnostic' && <DiagnosticModule />}
-
-        {activeTab === 'commercial' && <CommercialModule />}
 
         {activeTab === 'roi' && <RoiCalculatorModule />}
 

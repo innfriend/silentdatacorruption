@@ -40,11 +40,6 @@ const MODULE_META: Record<ModuleTab, { title: string; subtitle: string; tag: str
     subtitle: 'Financial modeler estimating saved GPU-hours, prevented loss spikes, and pre-training dollar savings',
     tag: 'FINANCIAL MODEL',
   },
-  commercial: {
-    title: 'Enterprise Commercial Suite & Fleet Licensing',
-    subtitle: 'B2B subscription tiers, Slurm daemonset manifests, Prometheus telemetry exporters, and licensing specs',
-    tag: 'FLEET LICENSING',
-  },
   science: {
     title: 'SDC Physics, Silicon Mechanics & IEEE 754 Knowledge Base',
     subtitle: 'Mathematical proof of stochastic parity invariants, why hardware ECC misses ALU SDCs, and bit-flipper simulator',

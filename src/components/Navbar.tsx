@@ -30,7 +30,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'scanner', label: 'LOG FORENSICS' },
     { id: 'diagnostic', label: 'AI DIAGNOSTIC', badge: 'GEMINI' },
     { id: 'roi', label: 'ROI CALCULATOR' },
-    { id: 'commercial', label: 'FLEET LICENSING' },
     { id: 'science', label: 'SDC SCIENCE' },
   ];
 

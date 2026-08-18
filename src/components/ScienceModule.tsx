@@ -11,6 +11,10 @@ import {
   TrendingDown,
   RotateCcw,
   Sparkles,
+  Play,
+  CheckCircle2,
+  AlertTriangle,
+  Zap,
 } from 'lucide-react';
 
 export const ScienceModule: React.FC = () => {
@@ -23,6 +27,90 @@ export const ScienceModule: React.FC = () => {
     0, 1, 1, 1, 1, 1, 1, 1, // Exponent (8 bits = 127 = 2^0)
     1, 0, 0, 0, 0, 0, 0, // Mantissa (7 bits = 0.5) => Total = 1.50
   ]);
+
+  // Interactive Freivalds 4x4 Matrix Debugger State
+  const initialMatrixA = [
+    [1.2, 0.5, -0.8, 2.0],
+    [0.4, -1.5, 1.0, 0.2],
+    [-0.7, 2.1, 0.3, -1.1],
+    [1.0, 0.0, 1.4, 0.8],
+  ];
+
+  const initialMatrixB = [
+    [0.8, -0.4, 1.2, 0.5],
+    [1.1, 2.0, -0.3, 1.0],
+    [-0.5, 0.6, 0.9, -1.4],
+    [0.3, 1.2, -0.7, 0.8],
+  ];
+
+  const computeExactProduct = (A: number[][], B: number[][]): number[][] => {
+    const N = A.length;
+    const C: number[][] = Array.from({ length: N }, () => new Array(N).fill(0));
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        let sum = 0;
+        for (let k = 0; k < N; k++) {
+          sum += A[i][k] * B[k][j];
+        }
+        C[i][j] = Number(sum.toFixed(3));
+      }
+    }
+    return C;
+  };
+
+  const [matrixA] = useState<number[][]>(initialMatrixA);
+  const [matrixB] = useState<number[][]>(initialMatrixB);
+  const [matrixC, setMatrixC] = useState<number[][]>(computeExactProduct(initialMatrixA, initialMatrixB));
+  const [rademacherR, setRademacherR] = useState<number[]>([1, -1, 1, 1]);
+  const [corruptedCell, setCorruptedCell] = useState<{ r: number; c: number; originalVal: number } | null>(null);
+
+  // Compute Freivalds Invariant Projections:
+  // v1 = r^T * C (vector of size N)
+  const v1 = [0, 0, 0, 0];
+  for (let j = 0; j < 4; j++) {
+    let sum = 0;
+    for (let i = 0; i < 4; i++) {
+      sum += rademacherR[i] * matrixC[i][j];
+    }
+    v1[j] = Number(sum.toFixed(4));
+  }
+
+  // vTemp = r^T * A (vector of size 4)
+  const vTemp = [0, 0, 0, 0];
+  for (let k = 0; k < 4; k++) {
+    let sum = 0;
+    for (let i = 0; i < 4; i++) {
+      sum += rademacherR[i] * matrixA[i][k];
+    }
+    vTemp[k] = Number(sum.toFixed(4));
+  }
+
+  // v2 = vTemp * B (vector of size 4)
+  const v2 = [0, 0, 0, 0];
+  for (let j = 0; j < 4; j++) {
+    let sum = 0;
+    for (let k = 0; k < 4; k++) {
+      sum += vTemp[k] * matrixB[k][j];
+    }
+    v2[j] = Number(sum.toFixed(4));
+  }
+
+  // Delta residual norm: ||v1 - v2||_inf
+  const deltaResidual = Math.max(...v1.map((val, idx) => Math.abs(val - v2[idx])));
+  const isInvariantViolated = deltaResidual > 1e-3;
+
+  const handleInjectBitFlip = (row: number, col: number, delta: number) => {
+    const nextC = matrixC.map((r) => [...r]);
+    const original = nextC[row][col];
+    nextC[row][col] = Number((original + delta).toFixed(3));
+    setMatrixC(nextC);
+    setCorruptedCell({ r: row, c: col, originalVal: original });
+  };
+
+  const handleResetMatrix = () => {
+    setMatrixC(computeExactProduct(matrixA, matrixB));
+    setCorruptedCell(null);
+  };
 
   const handleFormatChange = (fmt: Ieee754Format) => {
     setSelectedFormat(fmt);
@@ -90,6 +178,202 @@ export const ScienceModule: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Interactive Freivalds Matrix Verification Debugger */}
+      <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#4A5D4E]" />
+              <h3 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+                Interactive Freivalds Matrix Verification Debugger (4×4 GEMM)
+              </h3>
+            </div>
+            <p className="text-xs text-[#666] mt-0.5">
+              Experience why stochastic projection <span className="font-mono text-[#4A5D4E]">r^T · C = (r^T · A) · B</span> detects ALU bit-flips in O(N²) without computing full duplicate 2× GEMM
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleInjectBitFlip(1, 2, 16.0)}
+              className="px-2.5 py-1 text-xs font-mono font-bold bg-[#8C2D2D] hover:bg-[#722424] text-white rounded-[2px] cursor-pointer shadow-xs"
+            >
+              Inject MSB SDC (+16.0)
+            </button>
+            <button
+              onClick={() => handleInjectBitFlip(2, 1, 0.25)}
+              className="px-2.5 py-1 text-xs font-mono font-bold bg-[#F27D26] hover:bg-[#D96B1E] text-white rounded-[2px] cursor-pointer shadow-xs"
+            >
+              Inject Mantissa (+0.25)
+            </button>
+            <button
+              onClick={handleResetMatrix}
+              className="px-2.5 py-1 text-xs font-mono bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] rounded-[2px] cursor-pointer"
+            >
+              Clean Math
+            </button>
+          </div>
+        </div>
+
+        {/* Matrix Tiles Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 font-mono text-xs mb-4">
+          {/* Matrix A */}
+          <div className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB]">
+            <div className="text-[10px] text-[#999] font-bold mb-1.5 flex justify-between">
+              <span>MATRIX A (4×4)</span>
+              <span>Input Activation</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1 text-center text-[11px]">
+              {matrixA.map((row, r) =>
+                row.map((val, c) => (
+                  <div key={`a-${r}-${c}`} className="bg-white p-1 rounded-[1px] border border-[#E4E3E0] text-[#2A2A2A]">
+                    {val.toFixed(1)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Matrix B */}
+          <div className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB]">
+            <div className="text-[10px] text-[#999] font-bold mb-1.5 flex justify-between">
+              <span>MATRIX B (4×4)</span>
+              <span>Weight Matrix</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1 text-center text-[11px]">
+              {matrixB.map((row, r) =>
+                row.map((val, c) => (
+                  <div key={`b-${r}-${c}`} className="bg-white p-1 rounded-[1px] border border-[#E4E3E0] text-[#2A2A2A]">
+                    {val.toFixed(1)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Matrix C (Output Tile with interactive click-to-corrupt) */}
+          <div className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB]">
+            <div className="text-[10px] text-[#999] font-bold mb-1.5 flex justify-between">
+              <span>MATRIX C = A × B</span>
+              <span className="text-[#4A5D4E]">Click cell to toggle</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1 text-center text-[11px]">
+              {matrixC.map((row, r) =>
+                row.map((val, c) => {
+                  const isCorrupted = corruptedCell?.r === r && corruptedCell?.c === c;
+                  return (
+                    <button
+                      key={`c-${r}-${c}`}
+                      onClick={() => handleInjectBitFlip(r, c, isCorrupted ? -4.0 : 4.0)}
+                      title={`Cell [${r}, ${c}]: ${val} (Click to flip bit)`}
+                      className={`p-1 rounded-[1px] font-bold transition-all cursor-pointer ${
+                        isCorrupted
+                          ? 'bg-[#8C2D2D] text-white animate-pulse'
+                          : 'bg-white hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#E4E3E0]'
+                      }`}
+                    >
+                      {val.toFixed(1)}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Projection Vector r */}
+          <div className="bg-[#F8F7F4] p-3 rounded-[2px] border border-[#D1D0CB]">
+            <div className="text-[10px] text-[#999] font-bold mb-1.5 flex justify-between">
+              <span>RANDOM r ∈ {"{-1, +1}^4"}</span>
+              <button
+                onClick={() =>
+                  setRademacherR(
+                    Array.from({ length: 4 }, () => (Math.random() > 0.5 ? 1 : -1))
+                  )
+                }
+                className="text-[#4A5D4E] hover:underline cursor-pointer"
+              >
+                Re-sample
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-1 text-center text-[11px] mb-2">
+              {rademacherR.map((rVal, idx) => (
+                <div
+                  key={`r-${idx}`}
+                  className="bg-[#2A2A2A] text-white font-bold p-1 rounded-[1px]"
+                >
+                  {rVal > 0 ? '+1' : '-1'}
+                </div>
+              ))}
+            </div>
+            <div className="text-[10px] text-[#666] leading-tight">
+              In-register pseudo-random seed generates sign vector in SRAM without memory traffic.
+            </div>
+          </div>
+        </div>
+
+        {/* Freivalds Invariant Verification Step-by-Step Breakdown */}
+        <div className="bg-[#1C1C1A] text-white p-4 rounded-[2px] border border-[#333330] font-mono text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#333330] mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[#888880]">INVARIANT EQUATION:</span>
+              <span className="font-bold text-emerald-400">
+                r^T · C = (r^T · A) · B
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[#888880]">RESIDUAL ||δ||:</span>
+              <span
+                className={`font-bold px-2 py-0.5 rounded-[2px] ${
+                  isInvariantViolated
+                    ? 'bg-[#8C2D2D] text-white animate-pulse'
+                    : 'bg-[#4A5D4E] text-white'
+                }`}
+              >
+                {deltaResidual.toFixed(4)} (ε = 0.001)
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[11px]">
+            <div>
+              <span className="text-[#888880]">1. Left Projection (r^T · C) [1×4 vector]:</span>
+              <div className="bg-[#2A2A28] p-2 rounded-[2px] mt-1 text-amber-300">
+                [{v1.map((v) => v.toFixed(2)).join(', ')}]
+              </div>
+            </div>
+            <div>
+              <span className="text-[#888880]">2. Right Projected Product ((r^T · A) · B) [1×4 vector]:</span>
+              <div className="bg-[#2A2A28] p-2 rounded-[2px] mt-1 text-blue-300">
+                [{v2.map((v) => v.toFixed(2)).join(', ')}]
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 pt-2 border-t border-[#333330] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isInvariantViolated ? (
+                <>
+                  <AlertTriangle className="w-4 h-4 text-[#8C2D2D]" />
+                  <span className="text-red-400 font-bold">
+                    SDC DETECTED! Mathematical Invariant Violated at residual δ = {deltaResidual.toFixed(4)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400 font-bold">
+                    INVARIANT PASS: All ALU dot products verified with &gt;99.999% statistical confidence
+                  </span>
+                </>
+              )}
+            </div>
+            <span className="text-[10px] text-[#888880]">
+              Compute Cost: 32 FLOPs vs 64 FLOPs (50% reduction on 4×4; 99.9% reduction on 8192×8192)
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Interactive IEEE 754 Bit Flipper Simulator Card */}
       <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">

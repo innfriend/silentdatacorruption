@@ -4,7 +4,6 @@ export type ModuleTab =
   | 'kernels'
   | 'scanner'
   | 'diagnostic'
-  | 'commercial'
   | 'roi'
   | 'science';
 
