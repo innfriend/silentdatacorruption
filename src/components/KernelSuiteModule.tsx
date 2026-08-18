@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 import { KernelConfig } from '../types';
 import { generateKernelCode } from '../data/kernelTemplates';
+import { PACKAGE_FILES } from '../data/packageFiles';
 import {
   Terminal,
   Download,
@@ -22,6 +24,8 @@ import {
   Server,
   FileText,
   AlertTriangle,
+  FolderArchive,
+  Package,
 } from 'lucide-react';
 
 export const KernelSuiteModule: React.FC = () => {
@@ -38,6 +42,8 @@ export const KernelSuiteModule: React.FC = () => {
   const [copied, setCopied] = useState<boolean>(false);
   const [activeGuideTab, setActiveGuideTab] = useState<'contents' | 'generated' | 'dashboard' | 'cli'>('contents');
   const [copiedCli, setCopiedCli] = useState<string | null>(null);
+  const [isZipping, setIsZipping] = useState<boolean>(false);
+  const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
 
   const generatedCode = generateKernelCode(config);
 
@@ -64,6 +70,123 @@ export const KernelSuiteModule: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadFullPackageZip = async () => {
+    setIsZipping(true);
+    try {
+      const zip = new JSZip();
+
+      // README.md
+      zip.file(
+        'README.md',
+        `# SilentGuard Enterprise AI Silicon Resilience Package (v1.4.2)
+================================================================================
+Hardware Silicon Arithmetic Resilience & SDC Protection for NVIDIA H100/B200 Clusters.
+
+## Quickstart Installation
+\`\`\`bash
+pip install .
+# or copy the self-contained silentguard.py drop-in directly into your repo
+\`\`\`
+
+## 1-Line Framework Initialization
+\`\`\`python
+import silentguard
+silentguard.auto_protect(framework="megatron", tolerance_eps=1e-4, auto_drain=True)
+\`\`\`
+
+## Included Modules
+- \`silentguard/kernels/triton_gemm.py\`: Fused In-Register Freivalds Parity Triton MMA
+- \`silentguard/kernels/flash_attn_guard.py\`: FlashAttention-3 Softmax row-sum invariant
+- \`silentguard/kernels/fp8_hopper.py\`: FP8 E4M3 exponent saturation and subnormal trap
+- \`silentguard/distributed/megatron_patch.py\`: Megatron-Core Column/RowParallel wrappers
+- \`silentguard/distributed/fsdp_wrapper.py\`: PyTorch FSDP forward/backward invariant hooks
+- \`silentguard/distributed/nccl_checksum.py\`: Distributed NVLink All-Reduce packet checksums
+- \`silentguard/inference/vllm_paged_attn.py\`: vLLM KV-cache and logit sanity monitors
+- \`silentguard/telemetry/prometheus_exporter.py\`: Real-time :9090 Prometheus metrics server
+- \`silentguard/telemetry/slurm_drain.py\`: Automated Slurm scontrol node quarantine trigger
+- \`silentguard/cli/main.py\`: \`silentguard\` CLI tool
+\`\`\`
+`
+      );
+
+      // setup.py
+      zip.file(
+        'setup.py',
+        `from setuptools import setup, find_packages
+
+setup(
+    name="silentguard",
+    version="1.4.2",
+    author="SilentGuard Silicon Resilience Platform",
+    description="In-flight arithmetic verification & SDC resilience for AI training clusters",
+    packages=find_packages(),
+    entry_points={
+        "console_scripts": [
+            "silentguard=silentguard.cli.main:main",
+        ],
+    },
+    install_requires=[
+        "torch>=2.2.0",
+        "triton>=2.1.0",
+        "numpy>=1.24.0",
+    ],
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    ],
+    python_requires=">=3.9",
+)
+`
+      );
+
+      // pyproject.toml
+      zip.file(
+        'pyproject.toml',
+        `[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "silentguard"
+version = "1.4.2"
+description = "In-flight arithmetic verification & SDC resilience for AI training clusters"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.2.0",
+    "triton>=2.1.0",
+    "numpy>=1.24.0",
+]
+`
+      );
+
+      // Standalone single-file drop-in
+      zip.file('silentguard.py', generatedCode);
+
+      // Full package tree files
+      PACKAGE_FILES.forEach((file) => {
+        zip.file(file.path, file.code);
+      });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'silentguard-1.4.2.zip';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error creating package zip:', err);
+    } finally {
+      setIsZipping(false);
+    }
   };
 
   return (
@@ -218,10 +341,22 @@ export const KernelSuiteModule: React.FC = () => {
                 </button>
                 <button
                   onClick={handleDownloadPy}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[2px] text-xs font-bold bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white shadow-xs transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] text-xs font-bold bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download .py Script</span>
+                  <span>Download .py</span>
+                </button>
+                <button
+                  onClick={handleDownloadFullPackageZip}
+                  disabled={isZipping}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[2px] text-xs font-bold bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {downloadSuccess ? (
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  ) : (
+                    <FolderArchive className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isZipping ? 'Zipping...' : downloadSuccess ? 'Downloaded!' : 'Download Full Package (.zip)'}</span>
                 </button>
               </div>
             </div>
@@ -349,73 +484,147 @@ export const KernelSuiteModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab 1: Package Contents */}
+        {/* Tab 1: Package Contents & Main Python Code */}
         {activeGuideTab === 'contents' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                <FileCode className="w-3.5 h-3.5 text-[#4A5D4E]" />
-                Python Package Structure (`silentguard/`)
-              </h4>
-              <div className="bg-[#1C1C1A] text-[#D1D0CB] rounded-[2px] p-4 font-mono text-xs border border-[#333330] leading-relaxed">
-                <pre className="text-emerald-300">
-{`silentguard/
-├── __init__.py                # Core entrypoints & single-line hooks
-├── kernels/
-│   ├── triton_gemm.py         # Fused In-Register Freivalds Triton MMA
-│   ├── flash_attn_guard.py    # FlashAttention-3 QK^T invariant hooks
-│   └── fp8_hopper.py          # FP8 (E4M3/E5M2) tensor core parity
-├── distributed/
-│   ├── megatron_patch.py      # Megatron-Core Column/RowParallel wrappers
-│   ├── fsdp_wrapper.py        # PyTorch FSDP / Torchtitan hooks
-│   └── nccl_checksum.py       # Distributed all-reduce packet CRC/invariants
-├── inference/
-│   ├── vllm_paged_attn.py     # vLLM KV-cache & logit anomaly detector
-│   └── sglang_guard.py        # SGLang RadixAttention invariant monitor
-├── telemetry/
-│   ├── prometheus_exporter.py # Live :9090 metrics server
-│   ├── slurm_drain.py         # Automated scontrol node drain trigger
-│   └── wandb_callback.py      # Weights & Biases / TensorBoard plugin
-└── cli/
-    ├── main.py                # \`silentguard\` CLI tool
-    └── tui_dashboard.py       # Terminal curses live cluster dashboard`}
-                </pre>
+          <div className="space-y-5">
+            {/* Top Download Action Banner */}
+            <div className="bg-[#F8F7F4] border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#4A5D4E]" />
+                  <h4 className="text-xs font-bold text-[#2A2A2A] font-mono uppercase tracking-wider">
+                    SilentGuard Production Package (`silentguard-1.4.2.zip`)
+                  </h4>
+                </div>
+                <p className="text-xs text-[#666] mt-0.5">
+                  Complete distribution with <code className="text-[#2A2A2A]">setup.py</code>, <code className="text-[#2A2A2A]">pyproject.toml</code>, Triton kernels, Megatron/PyTorch hooks, and Prometheus telemetry.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleDownloadPy}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] text-xs font-semibold bg-white hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download silentguard.py</span>
+                </button>
+                <button
+                  onClick={handleDownloadFullPackageZip}
+                  disabled={isZipping}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[2px] text-xs font-bold bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {downloadSuccess ? (
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  ) : (
+                    <FolderArchive className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isZipping ? 'Generating ZIP...' : downloadSuccess ? 'Downloaded!' : 'Download Package (.zip)'}</span>
+                </button>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
-                Key Modules & Functional Roles
-              </h4>
-              <div className="space-y-2.5 text-xs">
-                <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
-                  <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
-                    <span>1. In-Register Tensor Core MMA</span>
-                    <span className="text-[#4A5D4E] font-bold">&lt; 0.08% Overhead</span>
+            {/* Main Content Grid: Package Anatomy (Left) & Main Python Script (Right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Static Package Structure & Summary (5 cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <FileCode className="w-3.5 h-3.5 text-[#4A5D4E]" />
+                    Package Anatomy (`pip install .`)
+                  </h4>
+                  <div className="bg-[#1C1C1A] text-[#D1D0CB] rounded-[2px] p-4 font-mono text-xs border border-[#333330] leading-relaxed">
+                    <pre className="text-emerald-300">
+{`silentguard/
+├── __init__.py                # Main 1-line auto-patchers
+├── kernels/
+│   ├── triton_gemm.py         # In-Register Freivalds Triton MMA
+│   ├── flash_attn_guard.py    # FlashAttention-3 row-sum trap
+│   └── fp8_hopper.py          # FP8 (E4M3) tensor saturation
+├── distributed/
+│   ├── megatron_patch.py      # Megatron-Core Column/Row hooks
+│   ├── fsdp_wrapper.py        # PyTorch FSDP linear wrappers
+│   └── nccl_checksum.py       # Distributed NVLink CRC traps
+├── inference/
+│   ├── vllm_paged_attn.py     # vLLM KV-cache Kurtosis auditor
+│   └── sglang_guard.py        # SGLang RadixAttention monitor
+├── telemetry/
+│   ├── prometheus_exporter.py # Live :9090 Prometheus metrics
+│   ├── slurm_drain.py         # Automated scontrol node drain
+│   └── wandb_callback.py      # Weights & Biases telemetry
+└── cli/
+    ├── main.py                # \`silentguard\` CLI tool
+    └── tui_dashboard.py       # Terminal live cluster NOC`}
+                    </pre>
                   </div>
-                  <p className="text-[#666] mt-1">
-                    Evaluates Freivalds algebraic invariant <code className="text-[#2A2A2A]">$r^T \cdot (A \cdot B) = (r^T \cdot A) \cdot B$</code> directly in SRAM registers during matrix accumulation before HBM writeback.
-                  </p>
                 </div>
 
-                <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
-                  <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
-                    <span>2. Distributed Megatron & FSDP Monkeypatch</span>
-                    <span className="text-[#4A5D4E] font-bold">Zero Code Changes</span>
+                <div className="space-y-2 text-xs">
+                  <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
+                    <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
+                      <span>Zero-Dependency Drop-in</span>
+                      <span className="text-[#4A5D4E] font-bold">1 File (`silentguard.py`)</span>
+                    </div>
+                    <p className="text-[#666] mt-1">
+                      Drop directly into your Git repository without pip package installs or root permissions.
+                    </p>
                   </div>
-                  <p className="text-[#666] mt-1">
-                    Transparently intercepts Tensor-Parallel GEMMs across 128+ ranks, isolating bad math to the exact SM on the specific GPU rank.
-                  </p>
+
+                  <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
+                    <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
+                      <span>Full Enterprise Package</span>
+                      <span className="text-[#4A5D4E] font-bold">`pip install .`</span>
+                    </div>
+                    <p className="text-[#666] mt-1">
+                      Includes CLI diagnostic tools, Prometheus exporters, and automated Slurm node quarantine daemons.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Main Python Code Preview (7 cols) */}
+              <div className="lg:col-span-7 bg-white border border-[#D1D0CB] rounded-[2px] p-4 flex flex-col justify-between shadow-xs">
+                <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-2 border-b border-[#D1D0CB]">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <Terminal className="w-4 h-4 text-[#4A5D4E]" />
+                        <span className="font-mono text-xs font-bold text-[#2A2A2A]">
+                          Main Python Implementation (`silentguard.py`)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#666] mt-0.5">
+                        In-register Freivalds fused tensor MMA arithmetic validator with automated self-healing.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleCopyCode}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[2px] text-xs font-semibold bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#2A2A2A] border border-[#D1D0CB] transition-colors cursor-pointer"
+                      >
+                        {copied ? <Check className="w-3.5 h-3.5 text-[#4A5D4E]" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copied ? 'Copied' : 'Copy'}</span>
+                      </button>
+                      <button
+                        onClick={handleDownloadPy}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] text-xs font-bold bg-[#4A5D4E] hover:bg-[#3B4A3E] text-white shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download .py</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Syntax Code Editor Box */}
+                  <div className="bg-[#1C1C1A] text-[#D1D0CB] rounded-[2px] p-4 font-mono text-xs max-h-[380px] overflow-y-auto border border-[#333330] leading-relaxed">
+                    <pre className="text-emerald-300 font-mono">{generatedCode}</pre>
+                  </div>
                 </div>
 
-                <div className="p-3 bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px]">
-                  <div className="font-mono font-bold text-[#2A2A2A] flex justify-between">
-                    <span>3. In-Flight Tile Recomputation & Slurm Drain</span>
-                    <span className="text-[#4A5D4E] font-bold">&lt; 3.8ms Recovery</span>
-                  </div>
-                  <p className="text-[#666] mt-1">
-                    If an invariant violation is trapped, the corrupted tile is recomputed on a healthy SM in &lt;3.8ms, while the faulty node is quarantined from the cluster partition.
-                  </p>
+                <div className="mt-3 pt-2 border-t border-[#D1D0CB] flex items-center justify-between text-[11px] text-[#666]">
+                  <span>Ready for immediate deployment across NVIDIA DGX H100 / Blackwell clusters</span>
+                  <span className="font-mono text-[#4A5D4E] font-bold">&lt; 0.08% FLOP Overhead</span>
                 </div>
               </div>
             </div>
