@@ -1,0 +1,6 @@
+{
+  "name": "SilentGuard Enterprise",
+  "description": "Autonomous Silent Data Corruption (SDC), Silent Data Error (SDE), and GPU Cluster Reliability Platform for frontier AI and LLM pre-training.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
