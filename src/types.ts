@@ -17,6 +17,87 @@ export type FaultType =
   | 'voltage_droop'
   | 'bus_drift';
 
+export type SeverityLevel = 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+
+export type RecommendedAction =
+  | 'NONE'
+  | 'INSPECT_INPUT'
+  | 'INSPECT_ACTIVATION'
+  | 'INSPECT_PARAMETER'
+  | 'INSPECT_PARAMETER_STATE'
+  | 'INSPECT_CHECKPOINT'
+  | 'RESTART_RUN'
+  | 'ROLLBACK_MODEL'
+  | 'CHECK_HARDWARE'
+  | 'CHECK_NUMERICAL_PRECISION';
+
+export type PerformanceMode = 'light' | 'balanced' | 'full';
+
+export interface TrainGuardEvent {
+  schema_version: string;
+  event_id: string;
+  timestamp: string;
+  model_id: string;
+  model_version: string;
+  run_id: string;
+  step: number;
+  layer: 'deterministic_integrity' | 'parameter_integrity' | 'activation_integrity' | 'statistical_engine' | 'correlation_engine';
+  layer_number: 1 | 2 | 3 | 4 | 5;
+  event_type: string;
+  severity: SeverityLevel;
+  confidence: number;
+  location: {
+    module?: string;
+    parameter?: string;
+    index?: number;
+    tensor_name?: string;
+    rank?: number;
+    node_id?: string;
+  };
+  observed: {
+    value?: number;
+    delta?: number;
+    finite_ratio?: number;
+    nan_count?: number;
+    inf_count?: number;
+    l2_norm?: number;
+    kurtosis?: number;
+  };
+  baseline: {
+    median: number;
+    mad: number;
+    mean?: number;
+    std?: number;
+  };
+  thresholds: {
+    robust_z: number;
+    tolerance_eps?: number;
+  };
+  signals_triggered: string[];
+  evidence: {
+    persistence: number;
+    window: number;
+    consecutive_steps?: number;
+    baseline_poisoned: boolean;
+    explanation: string;
+  };
+  recommended_action: RecommendedAction;
+  action_detail: string;
+  detector_version: string;
+}
+
+export interface ReliabilityScoreBreakdown {
+  score: number; // 0 - 100
+  status: 'HEALTHY' | 'MINOR_ANOMALIES' | 'DEGRADED' | 'SERIOUS' | 'CRITICAL';
+  deterministicDeduction: number;
+  statisticalDeduction: number;
+  persistenceDeduction: number;
+  affectedComponentsDeduction: number;
+  cleanStepsCount: number;
+  totalMonitoredSteps: number;
+  noPoisoningRate: number;
+}
+
 export interface GpuRank {
   id: number;
   nodeId: string;
@@ -93,6 +174,11 @@ export interface KernelConfig {
   autoDrainOnFailure: boolean;
   inlineRecompute: boolean;
   telemetryEndpoint: string;
+  performanceMode?: PerformanceMode;
+  historySize?: number;
+  robustZThreshold?: number;
+  confirmationWindow?: number;
+  confirmationCount?: number;
 }
 
 export interface Ieee754Format {
@@ -104,3 +190,4 @@ export interface Ieee754Format {
   bias: number;
   description: string;
 }
+

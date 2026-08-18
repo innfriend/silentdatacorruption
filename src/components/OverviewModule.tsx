@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ShieldCheck,
   Server,
@@ -6,7 +6,6 @@ import {
   Search,
   Zap,
   Calculator,
-  DollarSign,
   BookOpen,
   ArrowRight,
   CheckCircle2,
@@ -14,8 +13,15 @@ import {
   Cpu,
   TrendingUp,
   Layers,
+  Activity,
+  Gauge,
+  Sliders,
+  Sparkles,
+  Lock,
 } from 'lucide-react';
 import { ModuleTab } from '../types';
+import { PIPELINE_LAYERS, INITIAL_TRAINGUARD_EVENTS, calculateReliabilityScore } from '../data/trainGuardEngine';
+import { ClusterHealthTrends } from './ClusterHealthTrends';
 
 interface OverviewModuleProps {
   setActiveTab: (tab: ModuleTab) => void;
@@ -34,6 +40,9 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
   corruptedRanks,
   recomputedTiles,
 }) => {
+  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number>(0);
+  const reliabilityScoreData = calculateReliabilityScore(INITIAL_TRAINGUARD_EVENTS, 5200);
+
   const launcherCards = [
     {
       id: 'simulator' as ModuleTab,
@@ -46,12 +55,21 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
     },
     {
       id: 'kernels' as ModuleTab,
-      title: 'Developer SDK & Fused Kernels',
+      title: 'TrainGuard v0.3 Production SDK',
       description:
-        'Compilable OpenAI Triton, PyTorch FSDP, DeepSpeed, and FlashAttention kernels embedding Freivalds stochastic parity invariants directly into register files with <0.08% overhead.',
+        'Official 5-Layer ML reliability SDK with Light/Balanced/Full profiles, exact parameter index localization, and 1-line PyTorch instrumentation.',
       icon: <Terminal className="w-4 h-4 text-[#4A5D4E]" />,
-      actionText: 'Generate & Download .py',
-      status: 'OpenAI Triton / CUDA v12.4',
+      actionText: 'Download v0.3 SDK (.zip)',
+      status: 'TrainGuard v0.3 / PyTorch 2.4+',
+    },
+    {
+      id: 'diagnostic' as ModuleTab,
+      title: '7-Question Evidence & Diagnostics',
+      description:
+        'Standardized 7-question forensic investigator (What, Where, When, Severity, Confidence, Evidence, Next Action) with actionable remediation playbooks.',
+      icon: <Zap className="w-4 h-4 text-[#4A5D4E]" />,
+      actionText: 'Run AI Diagnostics',
+      status: '7-Question Schema v1.0',
     },
     {
       id: 'scanner' as ModuleTab,
@@ -59,17 +77,8 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
       description:
         'Inspect PyTorch .pt and SafeTensors weights. Automatically detect kurtosis anomalies, silent exponent overflows, and low-order mantissa drift without training interruption.',
       icon: <Search className="w-4 h-4 text-[#4A5D4E]" />,
-      actionText: 'Scan Weights & Log Files',
+      actionText: 'Scan Weights & Checkpoints',
       status: 'Kurtosis & Exponent Audit',
-    },
-    {
-      id: 'diagnostic' as ModuleTab,
-      title: 'Gemini AI Root Cause Diagnostic',
-      description:
-        'Autonomous GPU microarchitecture forensic investigator. Connects to Gemini models to parse backtraces, identify damaged ALU units, and prescribe Slurm drain commands.',
-      icon: <Zap className="w-4 h-4 text-[#4A5D4E]" />,
-      actionText: 'Run AI Forensics',
-      status: 'Powered by Gemini 3.7 Flash',
     },
     {
       id: 'roi' as ModuleTab,
@@ -82,14 +91,16 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
     },
     {
       id: 'science' as ModuleTab,
-      title: 'SDC Science & IEEE 754 Explorer',
+      title: 'Statistical Engine & SDC Science',
       description:
-        'Deep-dive whitepaper detailing atmospheric neutron flux, transistor NBTI aging, why ECC misses ALU calculations, and an interactive bit-flipper explorer for FP32/BF16/FP8.',
+        'Deep-dive into Median/MAD mathematics, strict no-baseline poisoning safeguards, atmospheric neutron flux, and interactive IEEE 754 bit-flipper.',
       icon: <BookOpen className="w-4 h-4 text-[#4A5D4E]" />,
       actionText: 'Explore Knowledge Base',
-      status: 'Interactive Bit Flipper',
+      status: 'Median/MAD & IEEE 754',
     },
   ];
+
+  const selectedLayer = PIPELINE_LAYERS[selectedLayerIndex];
 
   return (
     <div className="space-y-6">
@@ -98,73 +109,220 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
         <div className="max-w-4xl">
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[2px] bg-[#F8F7F4] text-[#4A5D4E] text-[11px] font-mono mb-3 border border-[#D1D0CB]">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span className="font-semibold tracking-wider">MATHEMATICALLY PROVEN INVARIANT PROTECTION</span>
+            <span className="font-semibold tracking-wider">TRAINGUARD v0.3 PRODUCTION PLATFORM SPECIFICATION</span>
           </div>
           <h2 className="text-xl sm:text-3xl font-light tracking-tight text-[#2A2A2A] font-serif mb-3">
-            Eliminating Silent Data Corruption (SDC) in Frontier LLM Pre-Training
+            Evidence-Backed ML Reliability, Tensor Integrity & SDC Defense
           </h2>
           <p className="text-xs sm:text-sm text-[#555] leading-relaxed mb-5">
-            Silent Data Errors occur when cosmic rays, dynamic voltage droops (L · di/dt), or transistor aging flip bits directly inside GPU arithmetic ALUs and Tensor Cores. Traditional SRAM/HBM ECC only guards data at rest. SilentGuard injects in-register stochastic parity projections (<span className="font-mono text-[#2A2A2A]">r^T · C = (r^T · A) · B</span>) into fused Triton kernels, catching corruptions in <strong className="text-[#2A2A2A] font-semibold">&lt;3.8 ms</strong> with <strong className="text-[#4A5D4E] font-semibold">&lt;0.08% compute overhead</strong>.
+            TrainGuard is a PyTorch ML reliability SDK that monitors model execution and training for deterministic numerical failures, tensor/activation integrity problems, parameter state anomalies, and statistically abnormal runtime behavior. Operating across a <strong className="text-[#2A2A2A] font-semibold">5-layer pipeline</strong> with <strong className="text-[#4A5D4E] font-semibold">strict no-baseline poisoning</strong>, TrainGuard answers the 7 critical incident questions with mathematically backed confidence.
           </p>
           <div className="flex flex-wrap gap-5 text-xs font-mono text-[#4A5D4E]">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-[#4A5D4E]" />
-              <span className="text-[#2A2A2A]">Zero HBM Roundtrips</span>
+              <span className="text-[#2A2A2A]">5-Layer Defense Architecture</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-[#4A5D4E]" />
-              <span className="text-[#2A2A2A]">In-Flight Tile Recomputation</span>
+              <span className="text-[#2A2A2A]">Strict No-Baseline Poisoning</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-[#4A5D4E]" />
-              <span className="text-[#2A2A2A]">Autonomous Slurm Node Quarantine</span>
+              <span className="text-[#2A2A2A]">0–100 Reliability Score</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-[#4A5D4E]" />
+              <span className="text-[#2A2A2A]">Privacy: Metadata-Only Storage</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Real-time Executive Metrics Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4">
-          <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Cluster Health</div>
-          <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif mt-1">
-            {healthyRanks === totalRanks ? '100%' : `${((healthyRanks / totalRanks) * 100).toFixed(1)}%`}
+      {/* TrainGuard 0-100 Reliability Scorecard & Real-time Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Scorecard (5 cols) */}
+        <div className="lg:col-span-5 bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-[#D1D0CB]">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-[#4A5D4E]" />
+                <span className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono">
+                  TrainGuard Reliability Score
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-[2px] bg-[#F8F7F4] text-[#4A5D4E] border border-[#D1D0CB] text-[10px] font-mono font-bold">
+                {reliabilityScoreData.status}
+              </span>
+            </div>
+
+            <div className="my-4 flex items-baseline gap-3">
+              <div className="text-4xl sm:text-5xl font-light font-serif text-[#2A2A2A]">
+                {reliabilityScoreData.score}
+              </div>
+              <span className="text-sm font-mono text-[#666]">/ 100</span>
+              <span className="text-xs text-[#4A5D4E] font-medium font-mono ml-auto">
+                {reliabilityScoreData.cleanStepsCount} / {reliabilityScoreData.totalMonitoredSteps} Clean Steps
+              </span>
+            </div>
+
+            {/* Deductions Breakdown */}
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between text-[#666] pb-1 border-b border-[#EBEAE5]">
+                <span>Deterministic Failures Penalty</span>
+                <span className="text-red-700 font-bold">-{reliabilityScoreData.deterministicDeduction} pts</span>
+              </div>
+              <div className="flex items-center justify-between text-[#666] pb-1 border-b border-[#EBEAE5]">
+                <span>Statistical / Delta Anomalies</span>
+                <span className="text-amber-700 font-bold">-{reliabilityScoreData.statisticalDeduction} pts</span>
+              </div>
+              <div className="flex items-center justify-between text-[#666] pb-1 border-b border-[#EBEAE5]">
+                <span>Persistence / Recurrence Penalty</span>
+                <span className="text-amber-700 font-bold">-{reliabilityScoreData.persistenceDeduction} pts</span>
+              </div>
+              <div className="flex items-center justify-between text-[#666]">
+                <span>Affected Components Weighting</span>
+                <span className="text-[#666] font-bold">-{reliabilityScoreData.affectedComponentsDeduction} pts</span>
+              </div>
+            </div>
           </div>
-          <div className="text-[11px] text-[#4A5D4E] font-medium mt-1">
-            {healthyRanks} / {totalRanks} H100 Ranks
+
+          <div className="mt-4 pt-3 border-t border-[#D1D0CB] flex items-center justify-between text-[11px] text-[#666]">
+            <span className="flex items-center gap-1">
+              <Lock className="w-3 h-3 text-[#4A5D4E]" />
+              Baseline Shield: <strong>100% Unpoisoned</strong>
+            </span>
+            <span className="font-mono text-[#4A5D4E] font-bold">Weighted Algorithm v1.0</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4">
-          <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Detection Speed</div>
-          <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif mt-1">
-            3.18<span className="text-xs text-[#999] ml-1 font-sans">ms</span>
+        {/* Executive Metrics (7 cols) */}
+        <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col justify-between">
+            <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Cluster Health</div>
+            <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif my-1">
+              {healthyRanks === totalRanks ? '100%' : `${((healthyRanks / totalRanks) * 100).toFixed(1)}%`}
+            </div>
+            <div className="text-[11px] text-[#4A5D4E] font-medium font-mono">
+              {healthyRanks}/{totalRanks} H100 Ranks
+            </div>
           </div>
-          <div className="text-[11px] text-[#666] mt-1">In-register cache check</div>
+
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col justify-between">
+            <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Detection Latency</div>
+            <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif my-1">
+              3.18<span className="text-xs text-[#999] ml-1 font-sans">ms</span>
+            </div>
+            <div className="text-[11px] text-[#666] font-mono">In-register cache check</div>
+          </div>
+
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col justify-between">
+            <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Overhead (Balanced)</div>
+            <div className="text-2xl sm:text-3xl font-light text-[#4A5D4E] font-serif my-1">&lt; 0.08%</div>
+            <div className="text-[11px] text-[#666] font-mono">Profile: Balanced Mode</div>
+          </div>
+
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col justify-between">
+            <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Monitored Steps</div>
+            <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif my-1">5,200</div>
+            <div className="text-[11px] text-[#666] font-mono">Continuous validation</div>
+          </div>
+
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col justify-between">
+            <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Prevented Spikes</div>
+            <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif my-1">{14 + recomputedTiles}</div>
+            <div className="text-[11px] text-[#4A5D4E] font-medium font-mono">0 Lost Iterations</div>
+          </div>
+
+          <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4 flex flex-col justify-between">
+            <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Avoided Waste</div>
+            <div className="text-2xl sm:text-3xl font-light text-[#4A5D4E] font-serif my-1">$1.42M+</div>
+            <div className="text-[11px] text-[#666] font-mono">70B model run basis</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Enterprise Cluster Health Trends Visualization (Recharts) */}
+      <ClusterHealthTrends />
+
+      {/* Interactive 5-Layer ML Reliability Architecture Pipeline */}
+      <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#D1D0CB] pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#4A5D4E]" />
+              <h3 className="text-sm font-bold text-[#2A2A2A] tracking-wider uppercase font-mono">
+                TrainGuard 5-Layer Reliability & Detection Pipeline
+              </h3>
+            </div>
+            <p className="text-xs text-[#666] mt-0.5">
+              Click any layer to inspect deterministic integrity checks, parameter tracking, and robust statistical safeguards.
+            </p>
+          </div>
+          <span className="text-[11px] text-[#4A5D4E] font-mono font-bold">
+            All 5 Layers Online
+          </span>
         </div>
 
-        <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4">
-          <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">FLOP Overhead</div>
-          <div className="text-2xl sm:text-3xl font-light text-[#4A5D4E] font-serif mt-1">&lt;0.08%</div>
-          <div className="text-[11px] text-[#666] mt-1">O(N²) vs O(N³) GEMM</div>
+        {/* 5 Layer Navigation Tabs */}
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+          {PIPELINE_LAYERS.map((layer, idx) => {
+            const isSelected = selectedLayerIndex === idx;
+            return (
+              <button
+                key={layer.number}
+                onClick={() => setSelectedLayerIndex(idx)}
+                className={`p-3 rounded-[2px] text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                  isSelected
+                    ? 'bg-[#4A5D4E] text-white border-[#4A5D4E] shadow-xs'
+                    : 'bg-[#F8F7F4] hover:bg-[#EBEAE5] text-[#2A2A2A] border-[#D1D0CB]'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono uppercase font-bold mb-1">
+                    <span>L{layer.number}</span>
+                    <span className={isSelected ? 'text-emerald-200' : 'text-[#4A5D4E]'}>{layer.overhead}</span>
+                  </div>
+                  <div className="text-xs font-serif font-bold line-clamp-1">{layer.name.replace(/Layer \d: /, '')}</div>
+                </div>
+                <div className={`text-[10px] font-mono mt-2 truncate ${isSelected ? 'text-emerald-100' : 'text-[#666]'}`}>
+                  {layer.tagline}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4">
-          <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Protected GPUs</div>
-          <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif mt-1">16,384</div>
-          <div className="text-[11px] text-[#666] mt-1">Scale validated fleet</div>
-        </div>
+        {/* Selected Layer Inspection Card */}
+        <div className="bg-[#F8F7F4] border border-[#D1D0CB] rounded-[2px] p-4 grid grid-cols-1 md:grid-cols-12 gap-5">
+          <div className="md:col-span-7 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-[2px] bg-[#4A5D4E] text-white text-[10px] font-mono font-bold">
+                Layer {selectedLayer.number}
+              </span>
+              <h4 className="text-sm font-serif font-bold text-[#2A2A2A]">{selectedLayer.name}</h4>
+            </div>
+            <p className="text-xs text-[#555] leading-relaxed">
+              {selectedLayer.description}
+            </p>
+            <div className="pt-2 flex items-center gap-4 text-xs font-mono text-[#666]">
+              <span>Warmup: <strong className="text-[#2A2A2A]">{selectedLayer.warmupRequired ? '50-100 Steps' : 'Zero Warmup (Instant)'}</strong></span>
+              <span>Overhead: <strong className="text-[#4A5D4E]">{selectedLayer.overhead}</strong></span>
+            </div>
+          </div>
 
-        <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4">
-          <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Prevented Spikes</div>
-          <div className="text-2xl sm:text-3xl font-light text-[#2A2A2A] font-serif mt-1">{14 + recomputedTiles}</div>
-          <div className="text-[11px] text-[#4A5D4E] font-medium mt-1">0 Lost Iterations</div>
-        </div>
-
-        <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-4">
-          <div className="text-[10px] font-mono text-[#666] uppercase tracking-wider font-semibold">Saved Pre-train $</div>
-          <div className="text-2xl sm:text-3xl font-light text-[#4A5D4E] font-serif mt-1">$1.42M+</div>
-          <div className="text-[11px] text-[#666] mt-1">70B model run basis</div>
+          <div className="md:col-span-5 bg-white border border-[#D1D0CB] rounded-[2px] p-3 space-y-2">
+            <div className="text-[11px] font-mono font-bold text-[#2A2A2A] uppercase tracking-wider">
+              Active Checks & Invariants:
+            </div>
+            <ul className="space-y-1 text-xs font-mono text-[#4A5D4E]">
+              {selectedLayer.checks.map((chk, i) => (
+                <li key={i} className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#4A5D4E]" />
+                  <span className="text-[#2A2A2A]">{chk}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -213,44 +371,8 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
           ))}
         </div>
       </div>
-
-      {/* Architectural Diagram & Invariant Verification Pipeline */}
-      <div className="bg-white border border-[#D1D0CB] rounded-[3px] p-5 shadow-xs">
-        <h3 className="text-xs font-bold text-[#2A2A2A] uppercase tracking-wider font-mono mb-4">
-          SilentGuard Autonomous Reliability Pipeline
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB]">
-            <div className="text-[11px] font-mono font-bold text-[#4A5D4E] mb-1">01. IN-REGISTER INJECT</div>
-            <div className="text-xs font-semibold text-[#2A2A2A] mb-1">Stochastic Vector Generation</div>
-            <p className="text-[11px] text-[#666] leading-relaxed">
-              Generates random pseudo-rademacher vector r in {"{-1, +1}^M"} in SRAM register files without global memory allocation.
-            </p>
-          </div>
-          <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB]">
-            <div className="text-[11px] font-mono font-bold text-[#4A5D4E] mb-1">02. FUSED GEMM MMA</div>
-            <div className="text-xs font-semibold text-[#2A2A2A] mb-1">Dual-Projection Math</div>
-            <p className="text-[11px] text-[#666] leading-relaxed">
-              As Tensor Cores compute A x B, registers concurrently evaluate r^T · A in O(MK) and multiply by B in O(KN).
-            </p>
-          </div>
-          <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB]">
-            <div className="text-[11px] font-mono font-bold text-[#4A5D4E] mb-1">03. INVARIANT CHECK</div>
-            <div className="text-xs font-semibold text-[#2A2A2A] mb-1">Instant Delta Comparison</div>
-            <p className="text-[11px] text-[#666] leading-relaxed">
-              Evaluates ||r^T · C - (r^T · A) · B|| &lt;= epsilon. Any bit-flip triggers an immediate trap in 3.2ms.
-            </p>
-          </div>
-          <div className="bg-[#F8F7F4] p-4 rounded-[2px] border border-[#D1D0CB]">
-            <div className="text-[11px] font-mono font-bold text-[#4A5D4E] mb-1">04. AUTO-HEAL & DRAIN</div>
-            <div className="text-xs font-semibold text-[#2A2A2A] mb-1">Zero-Loss Continuity</div>
-            <p className="text-[11px] text-[#666] leading-relaxed">
-              Corrupted tile is re-dispatched to a clean SM, preventing NaN propagation to optimizer state while Slurm drains the degrading rank.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
+
 
